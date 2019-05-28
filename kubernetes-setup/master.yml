@@ -1,0 +1,42 @@
+---
+- hosts: all
+  become: true
+  gather_facts: yes
+  
+  tasks:
+  - name: 'Initialize the Kubernetes cluster using kubeadm'
+    shell: kubeadm init --apiserver-advertise-address="192.168.50.10" --apiserver-cert-extra-sans="192.168.50.10"  --node-name k8s-master --pod-network-cidr=192.168.0.0/16 >> cluster_initialized.txt
+    args:
+      chdir: /home/vagrant
+      creates: cluster_initialized.txt    
+
+  - name: 'create .kube directory'
+    become: yes
+    become_user: vagrant
+    file:
+      path: $HOME/.kube
+      state: directory
+      mode: 0755
+
+  - name: 'copy admin.conf to vagrant users .kube'
+    copy:
+      src: /etc/kubernetes/admin.conf
+      dest: /home/vagrant/.kube/config
+      remote_src: yes
+      owner: vagrant
+
+  - name: 'Add WeaveWorks network'
+    shell: kubectl apply -f "https://cloud.weave.works/k8s/net?k8s-version=$(kubectl version | base64 | tr -d '\n')" >> weaveworks_init.yml
+    become: yes
+    become_user: vagrant
+    args:
+      creates: weaveworks_init.yml
+      chdir: /home/vagrant
+
+  - name: 'Generate and register join command'
+    command: kubeadm token create --print-join-command
+    register: join_command
+
+  - name: Copy join command to local file
+    local_action: copy content="{{ join_command.stdout_lines[0] }}" dest="./join-command"
+    become: no

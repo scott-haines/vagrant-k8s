@@ -1,0 +1,75 @@
+---
+- hosts: all
+  become: true
+  gather_facts: yes
+  
+  tasks:
+  - name: 'Install Pre-Requisites'
+    apt:
+      name: "{{ packages }}"
+      state: present
+      update_cache: yes
+    vars:
+      packages:
+      - apt-transport-https
+      - ca-certificates
+      - curl
+      - software-properties-common
+        
+  - name: 'Add apt signing key for Docker'
+    apt_key:
+      url: https://download.docker.com/linux/ubuntu/gpg
+      state: present
+
+  - name: 'Add apt signing key for Kubernetes'
+    apt_key:
+      url: https://packages.cloud.google.com/apt/doc/apt-key.gpg
+      state: present
+
+  - name: 'Add apt repository for Kubernetes'
+    apt_repository:
+      repo: deb https://apt.kubernetes.io/ kubernetes-xenial main
+      state: present
+      filename: kubernetes.list
+
+  - name: 'Install Kubernetes tools'
+    apt:
+      name: "{{ packages }}"
+      state: present
+      update_cache: yes
+    vars:
+      packages:
+        - kubelet
+        - kubeadm
+        - kubectl
+
+  - name: 'Install docker'
+    apt:
+      name: "docker.io"
+      state: present
+      update_cache: yes
+    notify:
+      - docker status
+
+  - name: 'Remove swapfile from /etc/fstab'
+    mount:
+      name: "{{ item }}"
+      fstype: swap
+      state: absent
+    with_items:
+      - swap
+      - none
+
+  - name: 'Turn off swap'
+    command: swapoff -a
+    when: ansible_swaptotal_mb>0
+
+  - name: 'Restart kubelet'
+    service:
+      name: kubelet
+      daemon_reload: yes
+      state: restarted
+      
+  handlers:
+    - name: docker status
+      service: name=docker state=started

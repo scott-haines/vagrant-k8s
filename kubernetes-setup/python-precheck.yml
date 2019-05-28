@@ -1,0 +1,10 @@
+---
+- hosts: all
+  become: true
+  gather_facts: no
+  
+  pre_tasks:
+  - name: 'install python'
+    raw: 'apt-get -y install python >> python-installed.txt'
+    args:
+      creates: python-installed.txt
